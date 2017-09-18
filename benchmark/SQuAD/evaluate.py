@@ -2,6 +2,9 @@
 from __future__ import print_function
 from collections import Counter
 import string
+import functools
+import operator
+import itertools
 import re
 import argparse
 import json
@@ -75,7 +78,10 @@ def evaluate(dataset, predictions):
     return {'exact_match': exact_match, 'f1': f1}
 
 def evaluate_pair_list(target_list, prediction_list):
-    pass
+    exact_match = sum(map(lambda t: metric_max_over_ground_truths(exact_match_score, t[1], [t[0]]), zip(target_list, prediction_list)))
+    f1 = sum(map(lambda t: metric_max_over_ground_truths(f1_score, t[1], [t[0]]), zip(target_list, prediction_list)))
+    total = len(prediction_list)
+    return {'exact_match': 100.0 * exact_match/total, 'f1': 100.0 * f1 / total}
 
 if __name__ == '__main__':
     expected_version = '1.1'

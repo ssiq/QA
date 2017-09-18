@@ -1,4 +1,4 @@
 from .SQuAD import SQuAD
-from .evaluate import normalize_answer, f1_score, exact_match_score, evaluate
+from .evaluate import evaluate, evaluate_pair_list
 
-__all__ = ['SQuAD']
+__all__ = ['SQuAD', 'evaluate', 'evaluate_pair_list']
