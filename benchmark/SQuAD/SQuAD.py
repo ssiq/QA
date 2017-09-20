@@ -1,27 +1,33 @@
-from . import evaluate
-import config
 import json
-import typing
-from sklearn.utils import shuffle
-from nltk.tokenize import StanfordTokenizer
-import util
 import os
+import typing
+
+import more_itertools
+from nltk.tokenize import StanfordTokenizer
+from sklearn.utils import shuffle
+
+import config
+from common import util
+from common.util import parallel_map
+
 
 class SQuAD(object):
-    def __abs__(self):
+    def __init__(self):
         self._train_data = self._load_format_data(False)
         self._validation_data = self._load_format_data(True)
-        self.tokenizer = StanfordTokenizer()
 
-    def _tokenizer(self, text: str) -> typing.List[str]:
+    @staticmethod
+    def _tokenizer(texts: typing.List[str]) -> typing.List[typing.List[str]]:
         """
-        :param text: a string to tokenize
+        :param texts: a list of string to tokenize
         :return:
         """
-        return self.tokenizer.tokenize(text)
+        tokenizer = StanfordTokenizer()
+        return tokenizer.tokenize_sents(texts)
 
-    @util.disk_cache("SQuAD_data.pkl", os.path.join("question answer", "dataset", "cache"))
-    def _load_format_data(self, is_validation):
+    @staticmethod
+    @util.disk_cache("SQuAD_data.pkl", os.path.join("dataset", "cache"))
+    def _load_format_data(is_validation):
         if not is_validation:
             data_path = config.SQuAD_train_path
         else:
@@ -34,14 +40,25 @@ class SQuAD(object):
         answer_texts = []
         answer_starts = []
         answer_ends = []
-        for document in data['data']:
+
+        print("total document number: {}".format(len(data['data'])))
+        for i, document in enumerate(data['data']):
             for paragraphs in document['paragraphs']:
                 for qa in paragraphs['qas']:
-                    contexts.append(self._tokenizer(paragraphs['context']))
-                    quesitons.append(self._tokenizer(qa['question']))
-                    answer_texts.append(self._tokenizer(qa['answers'][0]['text']))
+                    contexts.append(paragraphs['context'])
+                    quesitons.append(qa['question'])
+                    answer_texts.append(qa['answers'][0]['text'])
                     answer_starts.append(qa['answers'][0]['answer_start'])
                     answer_ends.append(qa['answers'][0]['answer_start'] + len(answer_texts[-1]))
+            if i % 10 == 0:
+                print("finish the {}th document".format(i))
+
+        core_number = 10
+        partition = lambda x: [list(t) for t in more_itertools.divide(core_number, x)]
+
+        contexts = parallel_map(core_number, SQuAD._tokenizer, contexts, partition, more_itertools.flatten)
+        quesitons = parallel_map(core_number, SQuAD._tokenizer, quesitons, partition, more_itertools.flatten)
+        answer_texts = parallel_map(core_number, SQuAD._tokenizer, answer_texts, partition, more_itertools.flatten)
         return answer_ends, answer_starts, answer_texts, contexts, quesitons
 
     def train_set(self, epoches, batch_size=32):

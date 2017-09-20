@@ -1,9 +1,11 @@
-import tensorflow as tf
-import typing
-import functools
-import pickle
 import errno
+import functools
+import itertools
 import os
+import pickle
+from multiprocessing import Pool
+import typing
+
 
 
 def make_dir(*path: str) -> None:
@@ -26,11 +28,6 @@ def make_dir(*path: str) -> None:
     make_dir(base)
     os.mkdir(path)
 
-
-def load_check_point(checkpoint_path: str, sess: tf.Session, saver: tf.train.Saver) -> None:
-    ckpt = tf.train.get_checkpoint_state(os.path.dirname(checkpoint_path))
-    if ckpt and ckpt.model_checkpoint_path:
-        saver.restore(sess, ckpt.model_checkpoint_path)
 
 def format_dict_to_string(to_format_dict: dict) -> str:
     """
@@ -72,9 +69,11 @@ def disk_cache(basename, directory, method=False):
             filename = '{}-{}.pickle'.format(basename, hash(key))
             filepath = os.path.join(directory, filename)
             if os.path.isfile(filepath):
+                print("read file from {}".format(filepath))
                 with open(filepath, 'rb') as handle:
                     return pickle.load(handle)
             result = func(*args, **kwargs)
+            print("execute the function {} and save to {}".format(func.__name__, filepath))
             with open(filepath, 'wb') as handle:
                 pickle.dump(result, handle)
             return result
@@ -82,13 +81,22 @@ def disk_cache(basename, directory, method=False):
 
     return wrapper
 
+# ================================================================
+# multiprocess function
+# ================================================================
 
-def overwrite_graph(function):
-    @functools.wraps(function)
-    def wrapper(*args, **kwargs):
-        with tf.Graph().as_default():
-            return function(*args, **kwargs)
-    return wrapper
+def parallel_map(core_num, f, args, pre_call, last_call):
+    """
+    :param core_num: the cpu number
+    :param f: the function to parallel to do
+    :param args: the input args
+    :param pre_call: this will call to the args
+    :param last_call: this will call the result
+    :return:
+    """
+    with Pool(core_num) as p:
+        r = p.map(f, pre_call(args))
+        return last_call(r)
 
 
 if __name__ == '__main__':

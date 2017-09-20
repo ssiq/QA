@@ -17,3 +17,7 @@ class Test(unittest.TestCase):
 
         self.assertEqual(evaluate(*self.parse_target_and_prediction(target_list, predict_list)),
                          evaluate_pair_list(target_list, predict_list))
+
+    def test_SQuAD(self):
+        squad = SQuAD()
+        print(len(squad.validation_set_list))
