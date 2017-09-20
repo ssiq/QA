@@ -10,3 +10,6 @@ SQuAD_train_path = os.path.join(benchmark_dataset, SQuAD_dir, 'train-v1.1.json')
 embedding_path = os.path.join('/', 'home', 'wlw', 'dataset', 'embedding')
 glove_dir = 'glove'
 pretrained_glove_path = os.path.join(embedding_path, glove_dir, 'glove.6B', "glove.6B.100d.txt")
+
+#the cpu core number of the computer
+core_number = 10

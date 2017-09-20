@@ -85,7 +85,7 @@ def disk_cache(basename, directory, method=False):
 # multiprocess function
 # ================================================================
 
-def parallel_map(core_num, f, args, pre_call, last_call):
+def parallel_map(core_num, f, args, pre_call=lambda x:x, last_call=lambda x:x):
     """
     :param core_num: the cpu number
     :param f: the function to parallel to do
@@ -97,6 +97,17 @@ def parallel_map(core_num, f, args, pre_call, last_call):
     with Pool(core_num) as p:
         r = p.map(f, pre_call(args))
         return last_call(r)
+
+# ================================================================
+# dict function
+# ================================================================
+
+def reverse_dict(d: dict) -> dict:
+    """
+    swap key and value of a dict
+    dict(key->value) => dict(value->key)
+    """
+    return dict(map(reversed, d.items()))
 
 
 if __name__ == '__main__':
