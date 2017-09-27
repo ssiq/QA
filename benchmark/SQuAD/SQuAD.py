@@ -26,7 +26,7 @@ class SQuAD(object):
         return tokenizer.tokenize_sents(texts)
 
     @staticmethod
-    @util.disk_cache("SQuAD_data.pkl", os.path.join("dataset", "cache"))
+    @util.disk_cache("SQuAD_data.pkl", config.cache_path)
     def _load_format_data(is_validation):
         if not is_validation:
             data_path = config.SQuAD_train_path
