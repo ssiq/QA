@@ -11,6 +11,9 @@ from common import util
 from common.util import parallel_map
 
 
+## There is some bugs in the SQuAD._load_format_data function. The bug is fixed in the train set method and
+## the validation_set_list propertyvalidation_set_list
+
 class SQuAD(object):
     def __init__(self):
         self._train_data = self._load_format_data(False)
@@ -67,15 +70,17 @@ class SQuAD(object):
         Every time the generator will return a (paragraph(words_list), question, answer_text, answer_start) tuple
         """
         answer_ends, answer_starts, answer_texts, contexts, quesitons = self._train_data
+        answer_ends = [start + len(tokens) for start, tokens in zip(answer_starts, answer_texts)]
 
         for _ in epoches:
-            contexts, quesitons, answer_texts, answer_starts, answer_ends = shuffle(contexts, quesitons, answer_texts, answer_starts, answer_ends)
+            contexts, quesitons, answer_texts, answer_starts, answer_ends = shuffle(contexts, quesitons, answer_texts,
+                                                                                    answer_starts, answer_ends)
             for i in range(0, len(contexts), batch_size):
-                yield contexts[i:i+batch_size], \
-                      quesitons[i:i+batch_size], \
-                      answer_texts[i:i+batch_size], \
-                      answer_starts[i:i+batch_size], \
-                      answer_ends[i:i+batch_size]
+                yield contexts[i:i + batch_size], \
+                      quesitons[i:i + batch_size], \
+                      answer_texts[i:i + batch_size], \
+                      answer_starts[i:i + batch_size], \
+                      answer_ends[i:i + batch_size]
 
     @property
     def validation_set_list(self):
