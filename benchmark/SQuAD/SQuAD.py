@@ -38,12 +38,38 @@ class SQuAD(object):
 
         with open(data_path, 'r') as f:
             data = json.load(f)
+        if not is_validation:
+            return SQuAD.preprocess_train_data(data)
+        else:
+            return SQuAD.preprocess_validation_data(data)
+
+    @staticmethod
+    def preprocess_validation_data(data):
+        contexts = []
+        quesitons = []
+        ids = []
+        print("total document number: {}".format(len(data['data'])))
+        for i, document in enumerate(data['data']):
+            for paragraphs in document['paragraphs']:
+                for qa in paragraphs['qas']:
+                    contexts.append(paragraphs['context'])
+                    quesitons.append(qa['question'])
+                    ids.append(qa['id'])
+            if i % 10 == 0:
+                print("finish the {}th document".format(i))
+        core_number = 10
+        partition = lambda x: [list(t) for t in more_itertools.divide(core_number, x)]
+        contexts = parallel_map(core_number, SQuAD._tokenizer, contexts, partition, more_itertools.flatten)
+        quesitons = parallel_map(core_number, SQuAD._tokenizer, quesitons, partition, more_itertools.flatten)
+        return ids, contexts, quesitons, data
+
+    @staticmethod
+    def preprocess_train_data(data):
         contexts = []
         quesitons = []
         answer_texts = []
         answer_starts = []
         answer_ends = []
-
         print("total document number: {}".format(len(data['data'])))
         for i, document in enumerate(data['data']):
             for paragraphs in document['paragraphs']:
@@ -55,10 +81,8 @@ class SQuAD(object):
                     answer_ends.append(qa['answers'][0]['answer_start'] + len(answer_texts[-1]))
             if i % 10 == 0:
                 print("finish the {}th document".format(i))
-
         core_number = 10
         partition = lambda x: [list(t) for t in more_itertools.divide(core_number, x)]
-
         contexts = parallel_map(core_number, SQuAD._tokenizer, contexts, partition, more_itertools.flatten)
         quesitons = parallel_map(core_number, SQuAD._tokenizer, quesitons, partition, more_itertools.flatten)
         answer_texts = parallel_map(core_number, SQuAD._tokenizer, answer_texts, partition, more_itertools.flatten)
@@ -85,6 +109,6 @@ class SQuAD(object):
     @property
     def validation_set_list(self):
         """
-        It is will return a list of tuple (id, paragraph, question)
+        It is will return a tuple (ids(List), paragraphs(List), questions(List), validation_data(raw json data))
         """
         return self._validation_data
