@@ -2,6 +2,7 @@ import abc
 from gensim.models import KeyedVectors
 import numpy
 import fasttext
+import more_itertools
 
 import config
 from common import util
@@ -63,6 +64,7 @@ class GloveWordEmbedding(WordEmbedding):
 
 
 @util.disk_cache('word_vocabulary', config.cache_path)
-def load_vocabulary(word_vector_name, word_set) -> Vocabulary:
+def load_vocabulary(word_vector_name, text_list) -> Vocabulary:
     namd_embedding_dict = {"glove": GloveWordEmbedding()}
+    word_set = more_itertools.collapse(text_list)
     return Vocabulary(namd_embedding_dict[word_vector_name], word_set)
