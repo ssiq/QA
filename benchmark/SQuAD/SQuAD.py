@@ -39,8 +39,10 @@ class SQuAD(object):
         with open(data_path, 'r') as f:
             data = json.load(f)
         if not is_validation:
+            print("load train data")
             return SQuAD.preprocess_train_data(data)
         else:
+            print("load validation data")
             return SQuAD.preprocess_validation_data(data)
 
     @staticmethod
