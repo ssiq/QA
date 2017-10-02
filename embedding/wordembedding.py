@@ -3,33 +3,12 @@ from gensim.models import KeyedVectors
 import numpy
 import fasttext
 import more_itertools
+import tensorflow as tf
+import numpy as np
 
 import config
 from common import util
 
-class Vocabulary(object):
-    def __init__(self, embedding: WordEmbedding, word_set: set):
-        self.unk = '<unk>'
-        self.id_to_word_dict = dict(enumerate(set(word_set), start=1))
-        self.id_to_word_dict[0] = self.unk
-        self.word_to_id_dict = util.reverse_dict(self.id_to_word_dict)
-        self._embedding_matrix = [embedding[b] for a, b in sorted(self.id_to_word_dict.items(), key=lambda x:x[0])]
-
-    def word_to_id(self, word):
-        if word in self.word_to_id_dict.keys():
-            return self.word_to_id_dict[word]
-        else:
-            return 0
-
-    def id_to_word(self, i):
-        if i:
-            return self.id_to_word_dict[i]
-        else:
-            return self.unk
-
-    @property
-    def embedding_matrix(self):
-        return self._embedding_matrix
 
 class WordEmbedding(object):
     __metaclass__ = abc.ABCMeta
@@ -42,10 +21,23 @@ class WordEmbedding(object):
         pass
 
 
+def loadGloveModel(gloveFile):
+    print("Loading Glove Model")
+    f = open(gloveFile,'r')
+    model = {}
+    for line in f:
+        splitLine = line.split()
+        word = splitLine[0]
+        embedding = np.array([float(val) for val in splitLine[1:]])
+        model[word] = embedding
+    print("Done.",len(model)," words loaded!")
+    return model
+
+
 class GloveWordEmbedding(WordEmbedding):
     def __init__(self):
         super().__init__()
-        self.model = KeyedVectors.load(config.pretrained_glove_path)
+        self.model = loadGloveModel(config.pretrained_glove_path)
 
     def __getitem__(self, item):
         if item in self.model:
@@ -63,7 +55,51 @@ class GloveWordEmbedding(WordEmbedding):
 #         pass
 
 
-@util.disk_cache('word_vocabulary', config.cache_path)
+class Vocabulary(object):
+    def __init__(self, embedding: WordEmbedding, word_set: set):
+        self.unk = '<unk>'
+        self.id_to_word_dict = dict(list(enumerate(set(word_set), start=1)))
+        self.id_to_word_dict[0] = self.unk
+        self.word_to_id_dict = util.reverse_dict(self.id_to_word_dict)
+        self._embedding_matrix = np.array([embedding[b] for a, b in sorted(self.id_to_word_dict.items(), key=lambda x:x[0])])
+        with tf.variable_scope("word_embedding"):
+            self._tf_embedding = tf.Variable(name="embedding", initial_value=self._embedding_matrix,
+                                             dtype=tf.float32)
+
+    def word_to_id(self, word):
+        if word in self.word_to_id_dict.keys():
+            return self.word_to_id_dict[word]
+        else:
+            return 0
+
+    def id_to_word(self, i):
+        if i:
+            return self.id_to_word_dict[i]
+        else:
+            return self.unk
+
+    @property
+    def embedding_matrix(self):
+        return self._embedding_matrix
+
+    def embedding_layer(self, input_op):
+        """
+        :param input_op: a tensorflow tensor with shape [batch, max_length] and type tf.int32
+        :return: a looked tensor with shape [batch, max_length, embedding_size]
+        """
+        return tf.nn.embedding_lookup(self.embedding_matrix, input_op)
+
+    def parse_text(self, texts):
+        """
+        :param texts: a list of list of token
+        :return:
+        """
+        max_text = max(map(lambda x:len(x), texts))
+        texts = [[self.word_to_id(token) for token in text] for text in texts]
+        texts = [text+[-1]*(max_text-len(text)) for text in texts]
+        return texts
+
+
 def load_vocabulary(word_vector_name, text_list) -> Vocabulary:
     namd_embedding_dict = {"glove": GloveWordEmbedding()}
     word_set = more_itertools.collapse(text_list)

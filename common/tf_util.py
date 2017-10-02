@@ -1,5 +1,6 @@
 import functools
 import os
+import typing
 
 import tensorflow as tf
 
@@ -725,6 +726,23 @@ def lengths_to_mask(lengths_b, max_length):
     assert lengths_b.get_shape().ndims == 1
     mask_bt = tf.expand_dims(tf.range(max_length), 0) < tf.expand_dims(lengths_b, 1)
     return mask_bt
+
+
+def get_shape(tensor: tf.Tensor) -> typing.List:
+  """Returns static shape if available and dynamic shape otherwise."""
+  static_shape = tensor.shape.as_list()
+  dynamic_shape = tf.unstack(tf.shape(tensor))
+  dims = [s[1] if s[0] is None else s[0]
+          for s in zip(static_shape, dynamic_shape)]
+  return dims
+
+
+def length(seq: tf.Tensor) -> tf.Tensor:
+    """
+    :param seq: a tenser of sequence [batch, time, ....]
+    :return: the length of the sequence
+    """
+    return tf.reduce_sum(tf.reduce_max(tf.sign(seq), 2), 1)
 
 
 def in_session(f):
