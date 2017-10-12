@@ -3,6 +3,8 @@ import os
 import typing
 
 import tensorflow as tf
+import more_itertools
+from . util import is_sequence
 
 import numpy as np
 import builtins
@@ -204,7 +206,7 @@ def huber_loss(x, delta=1.0):
 # ================================================================
 
 
-def minimize_and_clip(optimizer, objective, var_list, clip_val=10):
+def minimize_and_clip(optimizer, objective, var_list, clip_val=10, global_step=None):
     """Minimized `objective` using `optimizer` w.r.t. variables in
     `var_list` while ensure the norm of the gradients for each
     variable is clipped to `clip_val`
@@ -213,7 +215,7 @@ def minimize_and_clip(optimizer, objective, var_list, clip_val=10):
     for i, (grad, var) in enumerate(gradients):
         if grad is not None:
             gradients[i] = (tf.clip_by_norm(grad, clip_val), var)
-    return optimizer.apply_gradients(gradients)
+    return optimizer.apply_gradients(gradients, global_step=global_step)
 
 
 # ================================================================
@@ -365,6 +367,90 @@ def dropout(x, pkeep, phase=None, mask=None):
         return mask * x
     else:
         return switch(phase, mask * x, pkeep * x)
+
+
+def sequence_mask_with_length(score, sequence_length, score_mask_value = -1e8):
+    score_mask = tf.sequence_mask(
+        sequence_length, maxlen=score.shape[1])
+    score_mask_values = score_mask_value * tf.ones_like(score)
+    return tf.where(score_mask, score, score_mask_values)
+
+
+def bi_rnn(cell, inputs, length_of_input):
+    """
+    :param cell: a function to create the rnn cell object
+    :param inputs: the input of [batch, time, dim]
+    :param length_of_input: the length of the inputs [batch]
+    :return: outputs, output_states
+    """
+    cell_fw = cell()
+    cell_bw = cell()
+    initial_state_fw = cell_fw.zero_state(get_shape(inputs)[0], tf.float32)
+    initial_state_bw = cell_bw.zero_state(get_shape(inputs)[0], tf.float32)
+    return tf.nn.bidirectional_dynamic_rnn(cell_fw=cell_fw,
+                                           cell_bw=cell_bw,
+                                           inputs=inputs,
+                                           sequence_length=length_of_input,
+                                           initial_state_fw=initial_state_fw,
+                                           initial_state_bw=initial_state_bw)
+
+
+def weight_multiply(name, tensor, projected_size):
+    """
+    This function is used to create the weight ant project the tensor to the projected_size.
+    :param name: the name used to create the weight matrix
+    :param tensor: a tf.Tensor object used to multiply the created weight
+    :param projected_size: the projected size
+    :return: the weighted tensor
+    """
+    t_shape = get_shape(tensor)
+    weigth_matrix = tf.get_variable(name,
+                                    shape=(t_shape[-1], projected_size),
+                                    dtype=tf.float32)
+    t = tf.reshape(tensor, (-1, t_shape[-1]))
+    return tf.reshape(tf.matmul(t, weigth_matrix),
+                      t_shape + [projected_size])
+
+
+def soft_attention_reduce_sum(memory, inputs, attention_size, memory_length):
+    """
+    :param memory:  a memory which is paied attention to.[batch, time, dim] or a tuple of this shape
+    :param inputs: a tensor of shape [batch, dim] or a list of tensor with the same shape
+    :param attention_size: the hidden state of attention
+    :param memory_length: the sequence length of the memory
+    :return: a weighted sum of the memory by time [batch, dim]
+    """
+    with tf.variable_scope("soft_attention_reduce_sum"):
+        output = soft_attention_logit(attention_size, inputs, memory, memory_length)
+        output = tf.nn.softmax(output)
+        if not is_sequence(memory):
+            memory = [memory]
+        memory = more_itertools.collapse(memory)
+        output = tf.expand_dims(output, axis=2)
+        return sum(tf.reduce_sum(m * output, axis=1) for m in memory)
+
+
+def soft_attention_logit(attention_size, inputs, memory, memory_length):
+    if not is_sequence(memory):
+        memory = [memory]
+    memory = more_itertools.collapse(memory)
+    weighted_memory_sum = sum(weight_multiply("memory_weighted_{}".format(i), m, attention_size)
+                              for i, m in enumerate(memory))
+    if not is_sequence(inputs):
+        inputs = [inputs]
+    inputs = more_itertools.collapse(inputs)
+    weighted_inputs_sum = sum(
+        weight_multiply("input_weight_{}".format(i), t, attention_size) for i, t in enumerate(inputs))
+    v = tf.get_variable("v",
+                        shape=(attention_size, 1),
+                        dtype=tf.float32)
+    output = tf.tanh(weighted_memory_sum + tf.expand_dims(weighted_inputs_sum, axis=1))
+    output = tf.reshape(output, (-1, attention_size))
+    output = tf.matmul(output, v)
+    memory_shape = get_shape(memory[0])
+    output = tf.reshape(output, (memory_shape[0], memory_shape[1]))
+    output = sequence_mask_with_length(output, memory_length, score_mask_value=0.0)
+    return output
 
 
 # ================================================================
@@ -550,6 +636,48 @@ def module(name):
         return WrapperModule(name)
     return wrapper
 
+
+def doublewrap(function):
+    """
+    A decorator decorator, allowing to use the decorator to be used without
+    parentheses if not arguments are provided. All arguments must be optional.
+    """
+
+    @functools.wraps(function)
+    def decorator(*args, **kwargs):
+        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
+            return function(args[0])
+        else:
+            return lambda wrapee: function(wrapee, *args, **kwargs)
+
+    return decorator
+
+
+@doublewrap
+def define_scope(function, scope=None, *args, **kwargs):
+    """
+    A decorator for functions that define TensorFlow operations. The wrapped
+    function will only be executed once. Subsequent calls to it will directly
+    return the result so that operations are added to the graph only once.
+    The operations added by the function live within a tf.variable_scope(). If
+    this decorator is used with arguments, they will be forwarded to the
+    variable scope. The scope name defaults to the name of the wrapped
+    function.
+    """
+    attribute = '_cache_' + function.__name__
+    name = scope or function.__name__
+
+    @property
+    @functools.wraps(function)
+    def decorator(self):
+        if not hasattr(self, attribute):
+            with tf.variable_scope(name, *args, **kwargs):
+                setattr(self, attribute, function(self))
+        return getattr(self, attribute)
+
+    return decorator
+
+
 # ================================================================
 # Graph traversal
 # ================================================================
@@ -728,7 +856,7 @@ def lengths_to_mask(lengths_b, max_length):
     return mask_bt
 
 
-def get_shape(tensor: tf.Tensor) -> typing.List:
+def get_shape(tensor: tf.Tensor):
   """Returns static shape if available and dynamic shape otherwise."""
   static_shape = tensor.shape.as_list()
   dynamic_shape = tf.unstack(tf.shape(tensor))

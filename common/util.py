@@ -109,6 +109,17 @@ def reverse_dict(d: dict) -> dict:
     """
     return dict(map(reversed, d.items()))
 
+# ================================================================
+# sequence function
+# ================================================================
+
+def is_sequence(s):
+    try:
+        iterator = iter(s)
+    except TypeError:
+        return False
+    else:
+        return True
 
 if __name__ == '__main__':
     make_dir('data', 'cache_data')

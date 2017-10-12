@@ -64,7 +64,7 @@ class Vocabulary(object):
         self._embedding_matrix = np.array([embedding[b] for a, b in sorted(self.id_to_word_dict.items(), key=lambda x:x[0])])
         with tf.variable_scope("word_embedding"):
             self._tf_embedding = tf.Variable(name="embedding", initial_value=self._embedding_matrix,
-                                             dtype=tf.float32)
+                                             dtype=tf.float32, trainable=False)
 
     def word_to_id(self, word):
         if word in self.word_to_id_dict.keys():
