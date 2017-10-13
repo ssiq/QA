@@ -16,7 +16,7 @@ from common.util import parallel_map
 
 class SQuAD(object):
     def __init__(self):
-        self._train_data = self._load_format_data(False)
+        self._train_data = list(map(list, self._load_format_data(False)))
         self._validation_data = self._load_format_data(True)
 
     @staticmethod
@@ -90,13 +90,17 @@ class SQuAD(object):
         answer_texts = parallel_map(core_number, SQuAD._tokenizer, answer_texts, partition, more_itertools.flatten)
         return answer_ends, answer_starts, answer_texts, contexts, quesitons
 
+    @property
+    def train_data(self):
+        return self._train_data
+
     def train_set(self, epoches, batch_size=32):
         """
         It is a generator return a generator of the train data.
         Every time the generator will return a (paragraph(words_list), question, answer_text, answer_start) tuple
         """
         answer_ends, answer_starts, answer_texts, contexts, quesitons = self._train_data
-        quesitons, contexts, answer_texts = list(quesitons), list(contexts), list(answer_texts)
+        # quesitons, contexts, answer_texts = list(quesitons), list(contexts), list(answer_texts)
         answer_ends = [start + len(tokens) for start, tokens in zip(answer_starts, answer_texts)]
         question_length = [len(q) for q in quesitons]
         contexts_length = [len(c) for c in contexts]
