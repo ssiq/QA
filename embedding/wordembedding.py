@@ -96,7 +96,7 @@ class Vocabulary(object):
         """
         max_text = max(map(lambda x:len(x), texts))
         texts = [[self.word_to_id(token) for token in text] for text in texts]
-        texts = [text+[-1]*(max_text-len(text)) for text in texts]
+        texts = [text+[0]*(max_text-len(text)) for text in texts]
         return texts
 
 

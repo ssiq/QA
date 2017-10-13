@@ -13,10 +13,15 @@ class RNet(object):
         self.passage_length = tf.placeholder(dtype=tf.int32, shape=(None,), name="passage_input_length")
         self.passage_character_input = tf.placeholder(dtype=tf.int32, shape=(None, None, None),
                                                       name="passage_character_input")
+        self.passage_character_input_length = tf.placeholder(dtype=tf.int32, shape=(None, None),
+                                                             name="passage_input_character_length")
+
         self.question_word_input = tf.placeholder(dtype=tf.int32, shape=(None, None), name="question_word_input")
         self.question_length = tf.placeholder(dtype=tf.int32, shape=(None,), name="question_length")
         self.question_character_input = tf.placeholder(dtype=tf.int32, shape=(None, None, None),
                                                        name="question_character_input")
+        self.question_character_input_length = tf.placeholder(dtype=tf.int32, shape=(None, None),
+                                                              name="question_character_input_length")
 
         self.answer_start_label = tf.placeholder(dtype=tf.int32, shape=(None, ), name="answer_start")
         self.answer_end_label = tf.placeholder(dtype=tf.int32, shape=(None, ), name="answer_end")
@@ -32,17 +37,17 @@ class RNet(object):
         self.global_variable = tf.Variable(initial_value=0, dtype=tf.int32, trainable=False)
 
 
-    def _embedding(self, words, characters):
+    def _embedding(self, words, characters, character_length):
         return tf.concat((self.word_embedding_layer(words),
-                          self.character_embedding_layer(characters)), axis=2)
+                          self.character_embedding_layer(characters, character_length)), axis=2)
 
     @tf_util.define_scope("passage_embedding_op")
     def passage_embedding_op(self):
-        return self._embedding(self.passage_word_input, self.passage_character_input)
+        return self._embedding(self.passage_word_input, self.passage_character_input, self.passage_character_input_length)
 
     @tf_util.define_scope("question_embedding_op")
     def question_embedding_op(self):
-        return self._embedding(self.question_word_input, self.question_character_input)
+        return self._embedding(self.question_word_input, self.question_character_input, self.question_character_input_length)
 
     def _gru_cell(self):
         return tf.nn.rnn_cell.GRUCell(self.hidden_state_size)

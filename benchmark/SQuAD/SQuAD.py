@@ -104,18 +104,23 @@ class SQuAD(object):
         answer_ends = [start + len(tokens) for start, tokens in zip(answer_starts, answer_texts)]
         question_length = [len(q) for q in quesitons]
         contexts_length = [len(c) for c in contexts]
+        question_character_length = [[len(w) for w in q] for q in quesitons]
+        contexts_character_length = [[len(w) for w in q] for q in contexts]
 
         for _ in range(epoches):
-            contexts, contexts_length, quesitons, question_length, answer_texts, answer_starts, answer_ends = shuffle(
-                contexts, contexts_length,
-                quesitons, question_length,
+            contexts, contexts_length, contexts_character_length, quesitons, question_length, question_character_length, \
+            answer_texts, answer_starts, answer_ends = shuffle(
+                contexts, contexts_length, contexts_character_length,
+                quesitons, question_length, question_character_length,
                 answer_texts,
                 answer_starts, answer_ends)
             for i in range(0, len(contexts), batch_size):
                 yield contexts[i:i + batch_size], \
                       contexts_length[i:i + batch_size], \
+                      contexts_character_length[i:i + batch_size], \
                       quesitons[i:i + batch_size], \
                       question_length[i:i + batch_size], \
+                      question_character_length[i:i + batch_size], \
                       answer_texts[i:i + batch_size], \
                       answer_starts[i:i + batch_size], \
                       answer_ends[i:i + batch_size]
