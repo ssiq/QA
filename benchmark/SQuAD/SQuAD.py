@@ -96,14 +96,22 @@ class SQuAD(object):
         Every time the generator will return a (paragraph(words_list), question, answer_text, answer_start) tuple
         """
         answer_ends, answer_starts, answer_texts, contexts, quesitons = self._train_data
+        quesitons, contexts, answer_texts = list(quesitons), list(contexts), list(answer_texts)
         answer_ends = [start + len(tokens) for start, tokens in zip(answer_starts, answer_texts)]
+        question_length = [len(q) for q in quesitons]
+        contexts_length = [len(c) for c in contexts]
 
-        for _ in epoches:
-            contexts, quesitons, answer_texts, answer_starts, answer_ends = shuffle(contexts, quesitons, answer_texts,
-                                                                                    answer_starts, answer_ends)
+        for _ in range(epoches):
+            contexts, contexts_length, quesitons, question_length, answer_texts, answer_starts, answer_ends = shuffle(
+                contexts, contexts_length,
+                quesitons, question_length,
+                answer_texts,
+                answer_starts, answer_ends)
             for i in range(0, len(contexts), batch_size):
                 yield contexts[i:i + batch_size], \
+                      contexts_length[i:i + batch_size], \
                       quesitons[i:i + batch_size], \
+                      question_length[i:i + batch_size], \
                       answer_texts[i:i + batch_size], \
                       answer_starts[i:i + batch_size], \
                       answer_ends[i:i + batch_size]
