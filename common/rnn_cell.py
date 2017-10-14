@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.contrib.framework import nest
 from . import tf_util
 
 
@@ -28,17 +29,20 @@ class GatedAttentionWrapper(RNNWrapper):
         super().__init__(cell, reuse)
         self._memory = memory
         self._memory_length = memory_length
-        self._memory_hidden_size = tf_util.get_shape(memory)[2]
         self._attention_size = attention_size
 
     def call(self, inputs, state):
         with tf.variable_scope("gated_attention"):
             atten = tf_util.soft_attention_reduce_sum(self._memory, [state, inputs], self._attention_size, self._memory_length)
-            inputs = tf.concat([inputs, atten], axis=1)
+            atten = nest.flatten(atten)
+            inputs = nest.flatten(atten)
+            print("atten:{}, input:{}".format(atten, inputs))
+            inputs = tf.concat(inputs + atten, axis=1)
             gate_weight = tf.get_variable("gate_weight",
-                                          shape=(tf_util.get_shape(inputs)[1], self._attention_size),
+                                          shape=(tf_util.get_shape(inputs)[1], tf_util.get_shape(inputs)[1]),
                                           dtype=tf.float32)
             inputs = inputs * tf.sigmoid(tf.matmul(inputs, gate_weight))
+            print("gated inputs:{}".format(inputs))
         return self._cell(inputs, state)
 
 

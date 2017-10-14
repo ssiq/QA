@@ -3,8 +3,9 @@ import os
 import typing
 
 import tensorflow as tf
+from tensorflow.contrib.framework import nest
 import more_itertools
-from . util import is_sequence
+from . util import is_sequence, sequence_sum
 
 import numpy as np
 import builtins
@@ -371,7 +372,7 @@ def dropout(x, pkeep, phase=None, mask=None):
 
 def sequence_mask_with_length(score, sequence_length, score_mask_value = -1e8):
     score_mask = tf.sequence_mask(
-        sequence_length, maxlen=score.shape[1])
+        sequence_length, maxlen=get_shape(score)[1])
     score_mask_values = score_mask_value * tf.ones_like(score)
     return tf.where(score_mask, score, score_mask_values)
 
@@ -385,14 +386,14 @@ def bi_rnn(cell, inputs, length_of_input):
     """
     cell_fw = cell()
     cell_bw = cell()
-    initial_state_fw = cell_fw.zero_state(get_shape(inputs)[0], tf.float32)
-    initial_state_bw = cell_bw.zero_state(get_shape(inputs)[0], tf.float32)
+    print("bi_rnn_inputs:{}, bi_rnn_length:{}".format(inputs, length_of_input))
+    # initial_state_fw = cell_fw.zero_state(get_shape(inputs)[0], tf.float32)
+    # initial_state_bw = cell_bw.zero_state(get_shape(inputs)[0], tf.float32)
     return tf.nn.bidirectional_dynamic_rnn(cell_fw=cell_fw,
                                            cell_bw=cell_bw,
                                            inputs=inputs,
                                            sequence_length=length_of_input,
-                                           initial_state_fw=initial_state_fw,
-                                           initial_state_bw=initial_state_bw)
+                                           dtype=tf.float32)
 
 
 def weight_multiply(name, tensor, projected_size):
@@ -427,19 +428,19 @@ def soft_attention_reduce_sum(memory, inputs, attention_size, memory_length):
             memory = [memory]
         memory = more_itertools.collapse(memory)
         output = tf.expand_dims(output, axis=2)
-        return sum(tf.reduce_sum(m * output, axis=1) for m in memory)
+        return [tf.reduce_sum(m * output, axis=1) for m in memory]
 
 
 def soft_attention_logit(attention_size, inputs, memory, memory_length):
     if not is_sequence(memory):
         memory = [memory]
-    memory = more_itertools.collapse(memory)
-    weighted_memory_sum = sum(weight_multiply("memory_weighted_{}".format(i), m, attention_size)
+    memory = list(more_itertools.collapse(memory))
+    weighted_memory_sum = sequence_sum(weight_multiply("memory_weighted_{}".format(i), m, attention_size)
                               for i, m in enumerate(memory))
     if not is_sequence(inputs):
         inputs = [inputs]
     inputs = more_itertools.collapse(inputs)
-    weighted_inputs_sum = sum(
+    weighted_inputs_sum = sequence_sum(
         weight_multiply("input_weight_{}".format(i), t, attention_size) for i, t in enumerate(inputs))
     v = tf.get_variable("v",
                         shape=(attention_size, 1),
@@ -677,6 +678,14 @@ def define_scope(function, scope=None, *args, **kwargs):
 
     return decorator
 
+
+def init_all_op(self: typing.Any) -> None:
+    """
+    The function is used to add all op in the model to the default tensorflow graph.
+    """
+    for i in dir(self):
+        if i.endswith('op'):
+            getattr(self, i)
 
 # ================================================================
 # Graph traversal

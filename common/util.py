@@ -121,5 +121,10 @@ def is_sequence(s):
     else:
         return True
 
+
+def sequence_sum(itr):
+    return sum(itr)
+
+
 if __name__ == '__main__':
     make_dir('data', 'cache_data')

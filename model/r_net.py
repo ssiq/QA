@@ -36,6 +36,8 @@ class RNet(object):
         self.learning_rate = learning_rate
         self.global_variable = tf.Variable(initial_value=0, dtype=tf.int32, trainable=False)
 
+        # tf_util.init_all_op(self)
+
 
     def _embedding(self, words, characters, character_length):
         return tf.concat((self.word_embedding_layer(words),

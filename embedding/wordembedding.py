@@ -62,9 +62,6 @@ class Vocabulary(object):
         self.id_to_word_dict[0] = self.unk
         self.word_to_id_dict = util.reverse_dict(self.id_to_word_dict)
         self._embedding_matrix = np.array([embedding[b] for a, b in sorted(self.id_to_word_dict.items(), key=lambda x:x[0])])
-        with tf.variable_scope("word_embedding"):
-            self._tf_embedding = tf.Variable(name="embedding", initial_value=self._embedding_matrix,
-                                             dtype=tf.float32, trainable=False)
 
     def word_to_id(self, word):
         if word in self.word_to_id_dict.keys():
@@ -82,12 +79,20 @@ class Vocabulary(object):
     def embedding_matrix(self):
         return self._embedding_matrix
 
-    def embedding_layer(self, input_op):
-        """
-        :param input_op: a tensorflow tensor with shape [batch, max_length] and type tf.int32
-        :return: a looked tensor with shape [batch, max_length, embedding_size]
-        """
-        return tf.nn.embedding_lookup(self.embedding_matrix, input_op)
+    def create_embedding_layer(self):
+        with tf.variable_scope("word_embedding"):
+            _tf_embedding = tf.Variable(name="embedding", initial_value=self._embedding_matrix,
+                                             dtype=tf.float32, trainable=False)
+        def embedding_layer(input_op):
+            """
+            :param input_op: a tensorflow tensor with shape [batch, max_length] and type tf.int32
+            :return: a looked tensor with shape [batch, max_length, embedding_size]
+            """
+            output = tf.nn.embedding_lookup(_tf_embedding, input_op)
+            print("word embedding:{}".format(output))
+            return output
+
+        return embedding_layer
 
     def parse_text(self, texts):
         """

@@ -22,8 +22,10 @@ class CharacterEmbedding(object):
         self.id_to_character_dict = dict(list(enumerate(start=0, iterable=token_set)))
         self.character_to_id_dict = util.reverse_dict(self.id_to_character_dict)
         self.embedding_shape = embedding_shape
+
+    def _create_embedding_matrix(self):
         with tf.variable_scope("character_embedding"):
-            self.embedding_matrix = tf.Variable(np.random.randn(len(self.id_to_character_dict), embedding_shape),
+            return tf.Variable(np.random.randn(len(self.id_to_character_dict), self.embedding_shape),
                                                 name="embedding",
                                                 dtype=tf.float32)
 
@@ -48,11 +50,9 @@ class CharacterEmbedding(object):
         return string_list
 
     @abc.abstractmethod
-    def embedding_layer(self, input_op, input_length_op):
+    def create_embedding_layer(self):
         """
-        :param input_op: [[[character_level_id]]]
-        :param input_length_op: [[the length of the word]]
-        :return: [[embedding_vector]]
+        :return: a function used to create the embedding layer
         """
         pass
 
@@ -70,16 +70,19 @@ class AbstractRNNCharacterEmbedding(CharacterEmbedding):
     def _rnn(self, input_op, input_length):
         pass
 
-    def embedding_layer(self,input_op, input_length_op):
-        input_shape = tf_util.get_shape(input_op)
-        input_op = tf.reshape(input_shape, (-1, input_shape[2]))
-        # length = tf_util.length(tf.one_hot(input_op, len(self.id_to_character_dict)))
-        length = tf.reshape(input_length_op, (-1, ))
-        length = tf.where(length==0, x=length, y=length+2)
-        input_op = tf.nn.embedding_lookup(self.embedding_matrix, input_op)
-        output = self._rnn(input_op, length)
-        output = tf.reshape(output, (input_shape[0], input_shape[1], -1))
-        return output
+    def create_embedding_layer(self):
+        def embedding_layer(input_op, input_length_op):
+            input_shape = tf_util.get_shape(input_op)
+            input_op = tf.reshape(input_shape, (-1, input_shape[2]))
+            # length = tf_util.length(tf.one_hot(input_op, len(self.id_to_character_dict)))
+            length = tf.reshape(input_length_op, (-1, ))
+            length = tf.where(length==0, x=length, y=length+2)
+            input_op = tf.nn.embedding_lookup(self._create_embedding_matrix(), input_op)
+            output = self._rnn(input_op, length)
+            output = tf.reshape(output, (input_shape[0], input_shape[1], self.embedding_shape*2))
+            print("character_embedding_output:{}".format(output))
+            return output
+        return embedding_layer
 
 
 class BiRNNCharacterEmbedding(AbstractRNNCharacterEmbedding):
