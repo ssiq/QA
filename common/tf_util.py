@@ -1,19 +1,12 @@
+import builtins
+import collections
+import copy
 import functools
 import os
 import typing
 
-import tensorflow as tf
-from tensorflow.contrib.framework import nest
-import more_itertools
-from . util import is_sequence, sequence_sum
-
 import numpy as np
-import builtins
-import functools
-import copy
-import os
-import collections
-
+import tensorflow as tf
 
 # ================================================================
 # Make consistent with numpy
@@ -377,25 +370,6 @@ def sequence_mask_with_length(score, sequence_length, score_mask_value = -1e8):
     return tf.where(score_mask, score, score_mask_values)
 
 
-def bi_rnn(cell, inputs, length_of_input):
-    """
-    :param cell: a function to create the rnn cell object
-    :param inputs: the input of [batch, time, dim]
-    :param length_of_input: the length of the inputs [batch]
-    :return: outputs, output_states
-    """
-    cell_fw = cell()
-    cell_bw = cell()
-    print("bi_rnn_inputs:{}, bi_rnn_length:{}".format(inputs, length_of_input))
-    # initial_state_fw = cell_fw.zero_state(get_shape(inputs)[0], tf.float32)
-    # initial_state_bw = cell_bw.zero_state(get_shape(inputs)[0], tf.float32)
-    return tf.nn.bidirectional_dynamic_rnn(cell_fw=cell_fw,
-                                           cell_bw=cell_bw,
-                                           inputs=inputs,
-                                           sequence_length=length_of_input,
-                                           dtype=tf.float32)
-
-
 def weight_multiply(name, tensor, projected_size):
     """
     This function is used to create the weight ant project the tensor to the projected_size.
@@ -410,48 +384,7 @@ def weight_multiply(name, tensor, projected_size):
                                     dtype=tf.float32)
     t = tf.reshape(tensor, (-1, t_shape[-1]))
     return tf.reshape(tf.matmul(t, weigth_matrix),
-                      t_shape + [projected_size])
-
-
-def soft_attention_reduce_sum(memory, inputs, attention_size, memory_length):
-    """
-    :param memory:  a memory which is paied attention to.[batch, time, dim] or a tuple of this shape
-    :param inputs: a tensor of shape [batch, dim] or a list of tensor with the same shape
-    :param attention_size: the hidden state of attention
-    :param memory_length: the sequence length of the memory
-    :return: a weighted sum of the memory by time [batch, dim]
-    """
-    with tf.variable_scope("soft_attention_reduce_sum"):
-        output = soft_attention_logit(attention_size, inputs, memory, memory_length)
-        output = tf.nn.softmax(output)
-        if not is_sequence(memory):
-            memory = [memory]
-        memory = more_itertools.collapse(memory)
-        output = tf.expand_dims(output, axis=2)
-        return [tf.reduce_sum(m * output, axis=1) for m in memory]
-
-
-def soft_attention_logit(attention_size, inputs, memory, memory_length):
-    if not is_sequence(memory):
-        memory = [memory]
-    memory = list(more_itertools.collapse(memory))
-    weighted_memory_sum = sequence_sum(weight_multiply("memory_weighted_{}".format(i), m, attention_size)
-                              for i, m in enumerate(memory))
-    if not is_sequence(inputs):
-        inputs = [inputs]
-    inputs = more_itertools.collapse(inputs)
-    weighted_inputs_sum = sequence_sum(
-        weight_multiply("input_weight_{}".format(i), t, attention_size) for i, t in enumerate(inputs))
-    v = tf.get_variable("v",
-                        shape=(attention_size, 1),
-                        dtype=tf.float32)
-    output = tf.tanh(weighted_memory_sum + tf.expand_dims(weighted_inputs_sum, axis=1))
-    output = tf.reshape(output, (-1, attention_size))
-    output = tf.matmul(output, v)
-    memory_shape = get_shape(memory[0])
-    output = tf.reshape(output, (memory_shape[0], memory_shape[1]))
-    output = sequence_mask_with_length(output, memory_length, score_mask_value=0.0)
-    return output
+                      t_shape[:-1] + [projected_size])
 
 
 # ================================================================

@@ -122,6 +122,13 @@ def is_sequence(s):
         return True
 
 
+def convert_to_list(s):
+    if is_sequence(s):
+        return list(s)
+    else:
+        return [s]
+
+
 def sequence_sum(itr):
     return sum(itr)
 

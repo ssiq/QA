@@ -1,6 +1,8 @@
 import tensorflow as tf
 from tensorflow.contrib.framework import nest
-from . import tf_util
+
+import common.rnn_util
+from . import tf_util, util
 
 
 class RNNWrapper(tf.nn.rnn_cell.RNNCell):
@@ -33,7 +35,7 @@ class GatedAttentionWrapper(RNNWrapper):
 
     def call(self, inputs, state):
         with tf.variable_scope("gated_attention"):
-            atten = tf_util.soft_attention_reduce_sum(self._memory, [state, inputs], self._attention_size, self._memory_length)
+            atten = common.rnn_util.soft_attention_reduce_sum(self._memory, [state, inputs], self._attention_size, self._memory_length)
             atten = nest.flatten(atten)
             inputs = nest.flatten(atten)
             print("atten:{}, input:{}".format(atten, inputs))
@@ -60,10 +62,14 @@ class SelfMatchAttentionWrapper(RNNWrapper):
 
     def call(self, inputs, state):
         with tf.variable_scope("self_match_attention"):
-            atten = tf_util.soft_attention_reduce_sum(self._memory,
-                                                      [inputs],
-                                                      self._attention_size,
-                                                      self._memory_length)
-            inputs = tf.concat([inputs, atten], axis=1)
+            inputs = util.convert_to_list(inputs)
+            atten = common.rnn_util.soft_attention_reduce_sum(self._memory,
+                                                              [inputs],
+                                                              self._attention_size,
+                                                              self._memory_length)
+            atten = util.convert_to_list(atten)
+
+            print("Self match, input:{}, atten:{}\n, added:{}".format(inputs, atten, inputs+atten))
+            inputs = tf.concat(inputs + atten, axis=1)
             inputs = tf_util.weight_multiply("gate_weight", inputs, tf_util.get_shape(inputs)[1])
             return self._cell(inputs, state)
