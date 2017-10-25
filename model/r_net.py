@@ -52,8 +52,11 @@ class RNet(object):
     def question_embedding_op(self):
         return self._embedding(self.question_word_input, self.question_character_input, self.question_character_input_length)
 
-    def _gru_cell(self):
-        return tf.nn.rnn_cell.GRUCell(self.hidden_state_size)
+    def _gru_cell(self, size=None):
+        if size is None:
+            return tf.nn.rnn_cell.GRUCell(self.hidden_state_size)
+        else:
+            return tf.nn.rnn_cell.GRUCell(size)
 
     def _multi_rnn_cell(self):
         return tf.nn.rnn_cell.MultiRNNCell([self._gru_cell() for _ in range(self.rnn_layer_number)],
@@ -107,9 +110,15 @@ class RNet(object):
                                                       self.self_matching_passage_op,
                                                       self.passage_length)
         a0_softmax = tf.expand_dims(tf.nn.softmax(a0), dim=2)
-        c0 = sum(a0_softmax*m for m in self.self_matching_passage_op)
-        cell = self._gru_cell()
-        h1 = cell(c0, self.question_vector_op)
+        print("a0_softmax:{}".format(a0_softmax))
+        print("self_matching_passage:{}".format(self.self_matching_passage_op))
+        c0 = list(tf.reduce_sum(a0_softmax*m, axis=1) for m in self.self_matching_passage_op)
+        print("c0:{}".format(c0))
+        c0 = tf.concat(c0, axis=1)
+        print("c0:{}".format(c0))
+        cell = self._gru_cell(size=self.hidden_state_size*2)
+        print("question_vector_op:{}".format(self.question_vector_op))
+        h1, _ = cell(c0, self.question_vector_op)
         with tf.variable_scope("soft_attention", reuse=True):
             a1 = rnn_util.soft_attention_logit(self.hidden_state_size,
                                                       h1,
