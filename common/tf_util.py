@@ -387,6 +387,18 @@ def weight_multiply(name, tensor, projected_size):
                       t_shape[:-1] + [projected_size])
 
 
+def l2_regularizer(scale, scope=None):
+    """
+    The same as the tf.contrib.layers.l2_regularizer
+    """
+    return tf.contrib.layers.l2_regularizer(scale, scope)
+
+
+def regularizer_loss():
+    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    return tf.add_n(reg_losses)
+
+
 # ================================================================
 # Theano-like Function
 # ================================================================

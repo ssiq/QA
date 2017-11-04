@@ -37,7 +37,16 @@ class RNet(object):
         self.learning_rate = learning_rate
         self.global_variable = tf.Variable(initial_value=0, dtype=tf.int32, trainable=False)
 
-        # tf_util.init_all_op(self)
+        tf_util.init_all_op(self)
+
+        all_inputs_list = [self.passage_word_input, self.passage_character_input, self.passage_character_input_length,
+             self.passage_length, self.question_word_input, self.question_character_input, self.question_character_input_length,
+             self.question_length,]
+
+        self.train = tf_util.function(
+           all_inputs_list + [self.answer_start_label, self.answer_end_label], [self.loss_op, self.train_op])
+
+        self.predict = tf_util.function(all_inputs_list, [self.answer_predict_op])
 
 
     def _embedding(self, words, characters, character_length):
